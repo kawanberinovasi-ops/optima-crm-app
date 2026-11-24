@@ -8,7 +8,7 @@
   const BASE = window.OPTIMA_API;
   // Supabase (assets/config.js + assets/supabase.js): semua permintaan lewat fungsi public.api di database.
   const SB = window.OptimaSupabase && window.OptimaSupabase.configured ? window.OptimaSupabase : null;
-  App.backend = { devLogin: false, sso: { google: !!SB } };
+  App.backend = { devLogin: false, sso: { google: !!SB }, password: !!SB };
 
   /* ---------- HTTP ---------- */
   const cookie = (n) => { const c = document.cookie.split('; ').find(x => x.startsWith(n + '=')); return c ? decodeURIComponent(c.slice(n.length + 1)) : ''; };
@@ -39,6 +39,7 @@
 
   /** Galat dari server ke form (422) atau toast. */
   function fail(e, m) {
+    if (e.status === 403 && e.data && e.data.code === 'must_change_password') { App.modal = { kind: 'pwchange', forced: true }; render(); return; }
     if (e.status === 422 && m) { m.err = Object.fromEntries(Object.entries(e.data.errors || {}).map(([k, v]) => [k, v[0]])); m.still = true; render(); return; }
     if (e.status === 401) return;
     toast(e.status === 403 ? 'Ga punya akses' : e.status === 419 ? 'Halaman kedaluwarsa' : 'Gagal tersimpan', e.status === 419 ? 'Muat ulang halaman lalu coba lagi.' : e.message, 'bad');
@@ -62,7 +63,7 @@
   async function loadLoginInfo() {
     if (SB) {
       // Daftar akun uji tidak ada di Supabase: login selalu lewat Google.
-      App.backend = { devLogin: false, sso: { google: true } };
+      App.backend = { devLogin: false, sso: { google: true }, password: true };
       if (!me()) { Store.db.users = []; Store.save(); }
       render(); return;
     }
@@ -111,7 +112,9 @@
     const missing = new Set([].concat((db.deals || []).map(d => d.recordId), (db.interactions || []).map(i => i.recordId)).filter(id => id && !ids.has(id)));
     missing.forEach(id => db.records.push({ id, code: '-', name: 'Data tidak bisa dilihat', cat: 'Lead', hidden: true, archived: false, contacts: [], contact: '', title: '', cEmail: '', phone: '', picId: '', dept: '', createdAt: '', updatedAt: '' }));
     db.session = b.me.id;
-    App.backend = { devLogin: b.devLogin, sso: App.backend.sso };
+    App.backend = { devLogin: b.devLogin, sso: App.backend.sso, password: App.backend.password };
+    // Masih memakai kata sandi sementara: wajib ganti dulu sebelum memakai aplikasi.
+    if (b.me.mustChangePassword && SB) App.modal = { kind: 'pwchange', forced: true };
     App.expired = null;
     Store.save();
   }
@@ -167,8 +170,22 @@
     App.login.err = LOGIN_ERR.sso_not_configured; render();
   };
   Actions.loginas = (el) => { const u = userById(el.dataset.v); if (u) devLogin(u.email); };
-  Forms.loginemail = (o) => {
+  Forms.loginemail = async (o) => {
     App.login.email = o.email;
+    if (SB) {
+      if (!emailOk(o.email || '')) { App.login.err = 'Email belum valid. Contoh: nama@kantor-kamu.id'; render(); return; }
+      if (!o.password) { App.login.err = 'Isi kata sandi.'; render(); return; }
+      App.login.step = 'loading'; App.login.err = ''; render();
+      let r;
+      try { r = await SB.signInPassword(o.email.trim(), o.password); } catch (e) { r = { status: 0, data: { message: 'Ga bisa terhubung ke server. Cek koneksi lalu coba lagi.' } }; }
+      if (r.status !== 200) { App.login.step = 'idle'; App.login.err = (r.data && r.data.message) || 'Login gagal. Coba lagi.'; render(); return; }
+      try {
+        await loadBootstrap();
+        App.login = { step: 'idle', email: '', err: '' }; App.pop = null; App.drawer = null; App.anim = true;
+        location.hash = '#/mywork'; render();
+      } catch (e) { App.login.step = 'idle'; App.login.err = e.message; await SB.signOut(); render(); }
+      return;
+    }
     if (!emailOk(o.email || '')) { App.login.err = 'Email belum valid. Contoh: nama@kantor-kamu.id'; render(); return; }
     if (!App.backend.devLogin) { App.login.err = 'Masuk pakai tombol SSO di atas ya.'; render(); return; }
     devLogin(o.email);
@@ -466,6 +483,8 @@
     } catch (e) { fail(e, m); }
   };
   Actions.resetdata = () => toast('Reset data contoh', 'Cuma ada di mode lokal tanpa server.', 'info');
+
+  window.ApiBoot = { loadBootstrap, fail };
 
   /* ---------- boot ---------- */
   async function boot() {

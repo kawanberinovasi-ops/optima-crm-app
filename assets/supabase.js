@@ -5,7 +5,7 @@
   const cfg = window.OPTIMA_SUPABASE || {};
   if (!cfg.url || !cfg.anonKey) return;
   const URL_ = cfg.url.replace(/\/+$/, '');
-  const KEY = 'optima_sb_session', PKCE = 'optima_sb_pkce';
+  const KEY = 'optima_sb_session', PKCE = 'optima_sb_pkce', PW = 'optima_pw_session';
   const base = { apikey: cfg.anonKey };
 
   const ss = {
@@ -16,6 +16,19 @@
   const here = () => location.origin + location.pathname;
 
   let session = ss.get(KEY);
+  // Sesi login kata sandi: token acak dari fungsi public.login, dikirim bersama setiap panggilan api().
+  let pwToken = ss.get(PW);
+  const keepPw = (t) => { pwToken = t || null; ss.set(PW, pwToken); };
+  async function rpc(fn, payload, bearer) {
+    const res = await fetch(URL_ + '/rest/v1/rpc/' + fn, {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json', Accept: 'application/json' }, base, bearer ? { Authorization: 'Bearer ' + bearer } : {}),
+      body: JSON.stringify(payload)
+    });
+    let r = null; try { r = await res.json(); } catch (e) { /* kosong */ }
+    if (!res.ok || !r || typeof r.status !== 'number') return { status: res.status >= 400 ? res.status : 500, data: { message: (r && r.message) || 'Galat server' } };
+    return r;
+  }
   const keep = (s) => {
     session = s ? { access_token: s.access_token, refresh_token: s.refresh_token, expires_at: s.expires_at || Math.floor(Date.now() / 1000) + (s.expires_in || 3600) } : null;
     ss.set(KEY, session);
@@ -46,7 +59,15 @@
 
   window.OptimaSupabase = {
     configured: true,
-    hasSession: () => !!session,
+    hasSession: () => !!(session || pwToken),
+
+    /** Login dengan email dan kata sandi. Hasil: {status, data} dari public.login. */
+    async signInPassword(email, password) {
+      keep(null);
+      const r = await rpc('login', { email, password });
+      if (r.status === 200 && r.data && r.data.token) keepPw(r.data.token); else keepPw(null);
+      return r;
+    },
 
     /** Ke halaman login Google lewat Supabase Auth, lalu kembali ke halaman ini dengan ?code=... */
     async signIn() {
@@ -68,12 +89,17 @@
       if (error) return { error: q.get('error_description') || h.get('error_description') || error };
       const verifier = ss.get(PKCE); ss.set(PKCE, null);
       if (!verifier) return { error: 'Sesi login kedaluwarsa. Coba sekali lagi.' };
-      try { keep(await auth('token?grant_type=pkce', { auth_code: code, code_verifier: verifier })); return { signedIn: true }; }
+      try { keepPw(null); keep(await auth('token?grant_type=pkce', { auth_code: code, code_verifier: verifier })); return { signedIn: true }; }
       catch (e) { return { error: e.message }; }
     },
 
     /** Panggil public.api(method, path, body). Hasil: {status, data} seperti respons HTTP backend lama. */
     async call(method, path, body) {
+      if (pwToken) {
+        const r = await rpc('api', { method, path, body: body || {}, session: pwToken });
+        if (r.status === 401) keepPw(null);
+        return r;
+      }
       const t = await token();
       if (!t) return { status: 401, data: { message: 'Silakan masuk dulu.', code: 'unauthenticated' } };
       const res = await fetch(URL_ + '/rest/v1/rpc/api', {
@@ -89,7 +115,7 @@
 
     async signOut() {
       const t = session && session.access_token;
-      keep(null);
+      keep(null); keepPw(null);
       if (t) { try { await auth('logout', {}, t); } catch (e) { /* tetap keluar di browser */ } }
     }
   };
