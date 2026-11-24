@@ -227,7 +227,10 @@ function seed() {
     { id: 'a1', at: new Date(Date.now() - 864e5 * 2).toISOString(), by: 'u1', action: 'Import', entity: 'Client & Partner', detail: '18 data contoh dimuat' },
     { id: 'a2', at: new Date(Date.now() - 864e5).toISOString(), by: 'u2', action: 'Ubah', entity: 'Deal', detail: 'Website & CRM pindah ke Negotiation' }
   ];
-  const news = ['Template data klien udah bisa diisi', 'Mode uji: semua data di sini contoh dan cuma tersimpan di browser ini', 'Stage tiap lini bisnis bisa ditambah dari halaman Pipeline', 'Akses & Audit ada di menu profil'];
+  // Info berjalan di My Work. Versi server tidak menyebut mode uji, karena datanya memang tersimpan di server.
+  const news = window.OPTIMA_API
+    ? ['Catat interaksi setelah setiap telepon atau meeting', 'Template import Excel ada di halaman Client dan Partner', 'Stage pipeline diatur Super Admin di halaman Pipeline', 'Butuh akses tambahan? Hubungi Super Admin']
+    : ['Template data klien udah bisa diisi', 'Mode uji: semua data di sini contoh dan cuma tersimpan di browser ini', 'Stage tiap lini bisnis bisa ditambah dari halaman Pipeline', 'Akses & Audit ada di menu profil'];
   const db = { v: 4, users, departments, access, lines, records, interactions, deals, audit, news, options: JSON.parse(JSON.stringify(DEFAULT_OPTS)), overrides: [], views: [], imports: [], notifs: [], changes: [], session: null, sessionStart: 0, lastActive: 0, seq: { r: records.length, i: interactions.length, d: deals.length } };
   return divisionWorkflow(db);
 }

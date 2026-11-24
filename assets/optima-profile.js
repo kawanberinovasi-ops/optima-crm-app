@@ -18,6 +18,11 @@
       '<div class="form-grid">' + field(m, 'name', 'Nama lengkap *', ' autocomplete="name" maxlength="80" required') + field(m, 'phone', 'Telepon / WhatsApp', ' type="tel" autocomplete="tel" maxlength="40" placeholder="Contoh: +62 812 3456 7890"') +
       '<label class="fld profile-full"><span>Bio singkat</span><textarea class="inp" id="profile-bio" name="bio" data-in="profilefield" rows="3" maxlength="300" placeholder="Ceritakan singkat tentang kamu."' + inv(m, 'bio') + ' aria-describedby="profile-bio-count">' + esc(m.val.bio) + '</textarea><small id="profile-bio-count">' + m.val.bio.length + '/300 karakter</small>' + fieldErr(m, 'bio') + '</label></div>' +
       '<div class="profile-account"><div class="profile-account-title">' + ic('lock', 'ic-s') + '<span>Data akun · dikelola admin</span></div><dl><div><dt>Email kantor</dt><dd>' + esc(u.email) + '</dd></div><div><dt>Department</dt><dd>' + esc(u.dept) + '</dd></div><div><dt>Role</dt><dd>' + esc(u.role) + '</dd></div></dl></div>' +
+      // Versi server: kata sandi login bisa dibuat atau diganti langsung dari profil (form-nya di assets/password.js).
+      (App.backend && App.backend.password ? '<div class="profile-account"><div class="profile-account-title">' + ic('lock', 'ic-s') + '<span>Kata sandi login</span></div>' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><span class="small muted" style="flex:1;min-width:200px">' +
+        (u.hasPassword ? 'Sudah dibuat. Kamu bisa masuk dengan email dan kata sandi, selain lewat Google.' : 'Belum dibuat. Saat ini kamu masuk lewat Google; buat kata sandi kalau ingin bisa masuk tanpa Google.') +
+        '</span><button type="button" class="btn btn-s btn-sm" data-a="pwchange">' + ic('lock', 'ic-s') + (u.hasPassword ? 'Ganti kata sandi' : 'Buat kata sandi') + '</button></div></div>' : '') +
       (m.err.storage ? '<p class="err" role="alert">' + esc(m.err.storage) + '</p>' : '');
     return modalShell('Edit Profil', 'Profil saya', body, '<button type="button" class="btn btn-s" data-a="close">Batal</button><button type="submit" class="btn"' + (m.loading ? ' disabled' : '') + '>' + ic('check', 'ic-s') + 'Simpan profil</button>', false, 'profile');
   };
