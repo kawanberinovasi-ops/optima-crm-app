@@ -44,10 +44,18 @@
       const res = await Api.post('me/password', { current: o.current || '', password: o.password });
       Object.assign(me(), { hasPassword: res.data.hasPassword, mustChangePassword: false });
       const wasForced = m.forced;
-      App.modal = null;
-      if (wasForced) await ApiBoot.loadBootstrap();
-      render(); toast('Kata sandi tersimpan', 'Pakai kata sandi baru ini saat login berikutnya.');
-    } catch (e) { m.busy = false; ApiBoot.fail(e, m); }
+      App.modal = null; render();
+      toast('Kata sandi tersimpan', 'Pakai kata sandi baru ini saat login berikutnya.');
+      if (wasForced) { try { await ApiBoot.loadBootstrap(); render(); } catch (x) { /* data dimuat ulang saat halaman dibuka lagi */ } }
+    } catch (e) {
+      m.busy = false;
+      // Galat untuk kolom yang tidak tampil di form ini (mis. kata sandi lama) tetap harus terlihat.
+      const shown = ['password', 'confirm'].concat(me().hasPassword && !m.forced ? ['current'] : []);
+      const errs = (e.status === 422 && e.data && e.data.errors) || {};
+      const hidden = Object.keys(errs).filter(k => !shown.includes(k));
+      if (hidden.length) { m.still = true; render(); toast('Kata sandi belum tersimpan', errs[hidden[0]][0] || e.message, 'bad'); return; }
+      ApiBoot.fail(e, m);
+    }
   };
 
   // Modal wajib ganti tidak bisa ditutup lewat tombol atau klik di luar.
