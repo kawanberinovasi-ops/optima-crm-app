@@ -47,7 +47,7 @@ const Modals = {
       '<input type="hidden" name="kind" value="Lead"><div class="form-grid">' +
       '<label class="fld" style="grid-column:1/-1"><span>Nama *</span><input class="inp" id="f-name" name="name" value="' + esc(v.name) + '"' + inv(m, 'name') + ' placeholder="Contoh: PT Maju Bersama" autofocus>' + fieldErr(m, 'name') + '</label>' +
       '<div class="fld"><span>Status</span><div>' + catChip(r.cat || 'Lead') + '</div><small>Client setelah closing / Won.</small></div>' +
-      '<label class="fld"><span>Layanan</span><select class="inp" name="service" data-ch="record-service"' + inv(m, 'service') + '>' + opt('', v.service, 'Belum ditentukan') + svcs.map(x => opt(x, v.service)).join('') + '</select>' + fieldErr(m, 'service') + '<small>' + (svc && svc.dept ? 'Divisi layanan yang disarankan: ' + esc(svc.dept) + '. Serah terima tetap lewat Pindah PIC / divisi.' : 'Layanan bisa ditentukan setelah kebutuhan Lead diketahui.') + '</small></label>' +
+      '<label class="fld"><span>Layanan utama</span><select class="inp" name="service" data-ch="record-service"' + inv(m, 'service') + '>' + opt('', v.service, 'Belum ditentukan') + svcs.map(x => opt(x, v.service)).join('') + '</select>' + fieldErr(m, 'service') + '<small>' + (svc && svc.dept ? 'Divisi layanan yang disarankan: ' + esc(svc.dept) + '. Serah terima tetap lewat Pindah PIC / divisi.' : 'Layanan bisa ditentukan setelah kebutuhan Lead diketahui.') + '</small></label>' +
       owner +
       '<label class="fld"><span>Segmen</span><input class="inp" name="segment" value="' + esc(v.segment) + '" placeholder="Korporat, pendidikan, …"></label>' +
       contact +
@@ -112,7 +112,9 @@ const Modals = {
       '<label class="fld"><span>Nilai penawaran (Rp)</span>' + (seeV ? '<input class="inp num" name="offer" value="' + esc(v.offer) + '" inputmode="numeric" placeholder="120000000"' + dis + '>' : '<input class="inp" value="Terkunci sesuai hak akses" disabled>') + '</label>' +
       '<label class="fld"><span>Target closing</span><input class="inp" type="date" name="target" value="' + esc(v.target) + '"' + dis + '></label>' +
       '<div class="fld"><span>PIC deal</span><input class="inp" value="' + esc(d.id ? userName(d.ownerId) : (pic ? pic.name : '-')) + '" disabled><input type="hidden" name="ownerId" value="' + esc(v.ownerId) + '"><small>Mengikuti PIC relasi.</small>' + fieldErr(m, 'ownerId') + '</div>' +
-      '<label class="fld"><span>Layanan</span><input class="inp" value="' + esc(rec ? (rec.service || 'Belum ditentukan') : v.service || 'Pilih relasi dahulu') + '" disabled></label>' +
+      // Layanan per deal: satu client bisa punya beberapa deal dengan layanan berbeda. Bawaan: layanan utama client.
+      (() => { const cur = v.service != null && v.service !== '' ? v.service : (rec && rec.service) || ''; const names = serviceList().map(x => x.name); if (cur && !names.includes(cur)) names.unshift(cur);
+        return '<label class="fld"><span>Layanan deal</span><select class="inp" name="service"' + dis + '>' + opt('', cur, 'Belum ditentukan') + names.map(x => opt(x, cur)).join('') + '</select><small>Bawaan: layanan utama client. Bisa beda di setiap deal.</small></label>'; })() +
       (d.id && d.status !== 'Open' ? '<div class="fld" style="grid-column:1/-1;padding:14px;border-radius:16px;background:var(--bg)"><span>Hasil closing</span><span class="small">' + esc(d.status) + (d.status === 'Won' ? ' · ' + (seeV ? fmtRp(d.value) : 'nilai terkunci') + ' · ' + fmtDate(d.closedAt) : '') + (d.reason ? ' · ' + esc(d.reason) : '') + '</span></div>' : '') + '</div>',
       (d.id && perm('deal') === 'M' ? '<button type="button" class="btn btn-s" data-a="deldeal" data-v="' + d.id + '" style="margin-right:auto">' + ic('trash', 'ic-s') + 'Hapus</button>' : '') + '<button type="button" class="btn btn-s" data-a="close">' + (ro ? 'Tutup' : 'Batal') + '</button>' + (ro ? '' : '<button type="submit" class="btn">' + ic('check', 'ic-s') + 'Simpan</button>'), true, ro ? null : 'deal');
   },
@@ -239,7 +241,11 @@ const Changes = {
   plval: (el) => { App.ui.pl.val = el.value; render(); },
   akact: (el) => { App.ui.ak.act = el.value; render(); },
   akby: (el) => { App.ui.ak.by = el.value; render(); },
-  'deal-record': (el) => { const f = el.closest('form'); const r = recById(el.value); const l = r ? lineForUser(userById(r.picId)) : null; App.modal.val = Object.assign(fd(f), { recordId: el.value, ownerId: r ? r.picId : '', lineId: l ? l.id : '', stageId: '' }); App.modal.stage = ''; render(); },
+  'deal-record': (el) => { const f = el.closest('form'); const r = recById(el.value); const l = r ? lineForUser(userById(r.picId)) : null; const m = App.modal;
+    const prev = recById((m.val && m.val.recordId) || m.recordId || (m.deal || {}).recordId); const val = fd(f);
+    // Layanan ikut client baru, kecuali sudah dipilih berbeda dari layanan client sebelumnya.
+    if (!val.service || (prev && val.service === prev.service)) val.service = r ? r.service || '' : '';
+    m.val = Object.assign(val, { recordId: el.value, ownerId: r ? r.picId : '', lineId: l ? l.id : '', stageId: '' }); m.stage = ''; render(); },
   'deal-line': (el) => { const f = el.closest('form'); App.modal.val = Object.assign(fd(f), { lineId: el.value, stageId: '' }); App.modal.stage = ''; render(); },
   udept: (el) => { const u = userById(el.dataset.v); audit('Ubah', 'Pengguna', u.name + ' pindah department ' + u.dept + ' ke ' + el.value); u.dept = el.value; commit(); },
   urole: (el) => { const u = userById(el.dataset.v); audit('Ubah', 'Pengguna', u.name + ' role ' + u.role + ' jadi ' + el.value); u.role = el.value; commit(); },
