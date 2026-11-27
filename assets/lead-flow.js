@@ -42,15 +42,14 @@ const svcChip = (s) => s ? '<span class="chip c-y">' + esc(s) + '</span>' : '';
 /* ---------- Pindah PIC / divisi ---------- */
 const handoverPics = divisionUsers;
 Modals.handover = (m) => {
-  const r = recById(m.id); const svc = serviceList().find(x => x.name === r.service);
-  // Divisi tujuan bawaan: divisi yang menangani layanannya, kalau belum ada divisi sekarang.
-  const v = Object.assign({ dept: (svc && svc.dept) || r.dept, picId: '', reason: '' }, m.val || {});
+  const r = recById(m.id);
+  const v = Object.assign({ dept: r.dept, picId: '', reason: '' }, m.val || {});
   const pics = v.dept ? handoverPics(v.dept) : [];
   return modalShell('Pindah PIC / divisi', esc(r.name),
     '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center" class="small">' + catChip(r.cat) + svcChip(r.service) + '<span>Sekarang: <b>' + esc(userName(r.picId)) + '</b> · ' + esc(r.dept) + '</span></div>' +
     '<p class="small muted" style="margin:0">Bisa ke divisi mana pun, termasuk ke atau dari Customer Service. Data, kontak, interaksi, dan deal mengikuti divisi penerima; deal pindah ke pipeline yang dipakai PIC baru dan yang masih berjalan dipegang PIC baru. PIC lama tidak lagi bisa membuka data ini, kecuali Super Admin. Pengisi data tetap tercatat.</p>' +
     '<div class="form-grid">' +
-    '<label class="fld"><span>Divisi tujuan *</span><select class="inp" name="dept" data-ch="hodept"' + inv(m, 'deptId') + '>' + opt('', v.dept, 'Pilih divisi') + Store.db.departments.map(d => opt(d.name, v.dept, d.name + (svc && svc.dept === d.name ? ' · menangani ' + svc.name : ''))).join('') + '</select>' + fieldErr(m, 'deptId') + '</label>' +
+    '<label class="fld"><span>Divisi tujuan *</span><select class="inp" name="dept" data-ch="hodept"' + inv(m, 'deptId') + '>' + opt('', v.dept, 'Pilih divisi') + Store.db.departments.map(d => opt(d.name, v.dept)).join('') + '</select>' + fieldErr(m, 'deptId') + '</label>' +
     '<label class="fld"><span>PIC penerima *</span><select class="inp" name="picId"' + inv(m, 'picId') + (v.dept ? '' : ' disabled') + '>' + opt('', v.picId, v.dept ? (pics.length ? 'Pilih orang' : 'Belum ada pengguna aktif') : 'Pilih divisi dulu') + pics.map(u => opt(u.id, v.picId, u.name + ' · ' + u.role)).join('') + '</select>' + fieldErr(m, 'picId') + '</label>' +
     '<label class="fld" style="grid-column:1/-1"><span>Alasan serah terima *</span><input class="inp" name="reason" value="' + esc(v.reason) + '"' + inv(m, 'reason') + ' placeholder="Contoh: butuh paket KOL, dipegang Digital Campaign">' + fieldErr(m, 'reason') + '</label></div>',
     '<button type="button" class="btn btn-s" data-a="close">Batal</button><button type="submit" class="btn">' + ic('swap', 'ic-s') + 'Serahkan</button>', false, 'handover');
@@ -77,36 +76,30 @@ Forms.handover = (o) => {
   toast('Penanganan diserahkan', r.name + ' → ' + to.dept + ' · ' + to.name, 'info');
 };
 
-/* ---------- Akses & Audit: tab Layanan & Divisi, dan department lintas divisi ---------- */
-/* Layanan milik setiap divisi (revisi klien 5 Nov 2026): divisi menambah, mengganti nama, dan menghapus layanannya sendiri.
-   Super Admin melihat dan mengatur semua divisi, termasuk memindahkan layanan ke divisi lain. */
-AdminTabs.services = (adm) => {
-  const depts = adm ? Store.db.departments.map(d => d.name) : [me().dept];
-  const all = Store.db.services || [];
-  return '<div class="sec-h"><div><span class="lbl">Layanan</span><h2 class="disp h2">' + (adm ? 'Layanan setiap divisi' : 'Layanan ' + esc(me().dept)) + '</h2></div></div>' +
-    '<p class="small muted" style="margin:0">Setiap divisi mengisi sendiri layanan yang mereka punya. Layanan dipakai di form Lead dan deal; mengganti nama ikut mengubah data yang memakainya, menghapus masuk Data terhapus (ditolak kalau masih dipakai).</p>' +
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px">' + depts.map(dept => {
-      const list = all.filter(x => x.dept === dept); const can = canManageServices(dept);
-      return '<div class="card pad" style="display:flex;flex-direction:column;gap:12px;padding:20px"><strong>' + esc(dept) + '</strong>' +
-        (list.length ? '<div style="display:flex;flex-direction:column;gap:8px">' + list.map(x => '<div style="display:flex;flex-direction:column;gap:8px;padding:12px 14px;border-radius:16px;background:var(--bg)">' +
-          '<div style="display:flex;align-items:center;gap:8px"><strong style="flex:1;min-width:0;overflow-wrap:anywhere">' + esc(x.name) + '</strong>' +
-          (can ? '<button type="button" class="icb" data-a="svcedit" data-v="' + x.id + '" aria-label="Ganti nama ' + esc(x.name) + '">' + ic('edit', 'ic-s') + '</button><button type="button" class="icb" style="color:var(--bad)" data-a="workflow-delete-service" data-v="' + x.id + '" aria-label="Hapus layanan ' + esc(x.name) + '">' + ic('trash', 'ic-s') + '</button>' : '') + '</div>' +
-          (adm ? '<label style="display:flex;align-items:center;gap:8px" class="small muted"><span style="white-space:nowrap">Pindah ke divisi</span><select class="inp" data-ch="svcdept" data-v="' + esc(x.id) + '" style="min-height:40px;flex:1;min-width:0">' + Store.db.departments.map(d => opt(d.name, x.dept)).join('') + '</select></label>' : '') +
-          '</div>').join('') + '</div>'
-          : '<span class="small muted">Belum ada layanan.</span>') +
-        (can ? '<form data-form="svcadd" style="display:flex;gap:8px"><input type="hidden" name="dept" value="' + esc(dept) + '"><label style="flex:1"><span class="sr">Layanan baru ' + esc(dept) + '</span><input class="inp" name="name" placeholder="Layanan baru" style="min-height:44px"></label><button type="submit" class="btn btn-sm">Tambah</button></form>' : '') + '</div>';
-    }).join('') + '</div>';
+/* ---------- Akses & Audit: tab Layanan ----------
+   Satu daftar layanan untuk semua divisi (revisi klien 27 Nov 2026). Semua divisi memakai daftar yang sama;
+   tambah, ganti nama, dan hapus dipegang Super Admin dan Kepala Department. */
+AdminTabs.services = () => {
+  const list = Store.db.services || []; const can = canManageServices();
+  return '<div class="sec-h"><div><span class="lbl">Layanan</span><h2 class="disp h2">Daftar layanan</h2></div></div>' +
+    '<p class="small muted" style="margin:0">Satu daftar untuk semua divisi, dipakai di form Lead dan deal. ' + (can ? 'Mengganti nama ikut mengubah data yang memakainya; menghapus masuk Data terhapus (ditolak kalau masih dipakai).' : 'Tambah atau ubah layanan lewat Kepala Department atau Super Admin.') + '</p>' +
+    '<div class="card pad" style="display:flex;flex-direction:column;gap:12px;padding:20px">' +
+      (list.length ? '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px">' + list.map(x => '<div style="display:flex;align-items:center;gap:8px;padding:12px 14px;border-radius:16px;background:var(--bg)"><strong style="flex:1;min-width:0;overflow-wrap:anywhere">' + esc(x.name) + '</strong>' +
+        (can ? '<button type="button" class="icb" data-a="svcedit" data-v="' + x.id + '" aria-label="Ganti nama ' + esc(x.name) + '">' + ic('edit', 'ic-s') + '</button><button type="button" class="icb" style="color:var(--bad)" data-a="workflow-delete-service" data-v="' + x.id + '" aria-label="Hapus layanan ' + esc(x.name) + '">' + ic('trash', 'ic-s') + '</button>' : '') +
+        '</div>').join('') + '</div>' : '<span class="small muted">Belum ada layanan.</span>') +
+      (can ? '<form data-form="svcadd" style="display:flex;gap:8px;max-width:520px"><label style="flex:1"><span class="sr">Layanan baru</span><input class="inp" name="name" placeholder="Layanan baru" style="min-height:44px"></label><button type="submit" class="btn btn-sm">Tambah</button></form>' : '') +
+    '</div>';
 };
 Forms.svcadd = (o) => {
-  if (!o.name || !canManageServices(o.dept)) return;
+  if (!o.name || !canManageServices()) return;
   Store.db.services = Store.db.services || [];
   if (Store.db.services.some(x => x.name.toLowerCase() === o.name.toLowerCase())) { toast('Udah ada', o.name + ' udah ada di daftar layanan.', 'bad'); return; }
-  Store.db.services.push({ id: uid('s'), name: o.name, dept: o.dept, active: true }); audit('Tambah', 'Layanan', o.name + ' (' + o.dept + ')'); commit();
+  Store.db.services.push({ id: uid('s'), name: o.name, dept: me().dept, active: true }); audit('Tambah', 'Layanan', o.name); commit();
 };
-Actions.svcedit = (el) => { const x = (Store.db.services || []).find(s => s.id === el.dataset.v); if (!x || !canManageServices(x.dept)) return; App.modal = { kind: 'svcedit', id: x.id, val: { name: x.name } }; render(); };
+Actions.svcedit = (el) => { const x = (Store.db.services || []).find(s => s.id === el.dataset.v); if (!x || !canManageServices()) return; App.modal = { kind: 'svcedit', id: x.id, val: { name: x.name } }; render(); };
 Modals.svcedit = (m) => modalShell('Ganti nama layanan', 'Layanan', '<div class="form-grid"><label class="fld" style="grid-column:1/-1"><span>Nama layanan *</span><input class="inp" name="name" value="' + esc((m.val || {}).name || '') + '"' + inv(m, 'name') + ' autofocus>' + fieldErr(m, 'name') + '</label></div>', '<button type="button" class="btn btn-s" data-a="close">Batal</button><button type="submit" class="btn">' + ic('check', 'ic-s') + 'Simpan</button>', false, 'svcedit');
 Forms.svcedit = (o) => {
-  const m = App.modal; const x = (Store.db.services || []).find(s => s.id === m.id); if (!x || !canManageServices(x.dept)) return;
+  const m = App.modal; const x = (Store.db.services || []).find(s => s.id === m.id); if (!x || !canManageServices()) return;
   if (!o.name || Store.db.services.some(s => s.id !== x.id && s.name.toLowerCase() === o.name.toLowerCase())) { m.err = { name: 'Isi nama layanan yang belum dipakai.' }; m.val = o; m.still = true; render(); return; }
   const old = x.name; x.name = o.name;
   Store.db.records.forEach(r => { if (r.service === old) r.service = o.name; });

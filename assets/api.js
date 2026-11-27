@@ -416,8 +416,7 @@
   const svcId = (id) => Number(id);
   Forms.svcadd = (o) => {
     if (!o.name) return;
-    const d = Store.db.departments.find(x => x.name === o.dept);
-    Api.post('services', { name: o.name, deptId: d ? Number(d.id) : null }).then(res => { Store.db.services = res.data; Store.save(); render(); toast('Ditambah', o.name + ' masuk layanan ' + o.dept + '.', 'info'); }).catch(e => fail(e));
+    Api.post('services', { name: o.name }).then(res => { Store.db.services = res.data; Store.save(); render(); toast('Ditambah', o.name + ' masuk daftar layanan.', 'info'); }).catch(e => fail(e));
   };
   Forms.svcedit = (o) => {
     const m = App.modal; if (!o.name) { m.err = { name: 'Isi nama layanan.' }; m.still = true; render(); return; }

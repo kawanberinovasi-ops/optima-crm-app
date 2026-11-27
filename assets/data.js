@@ -348,7 +348,8 @@ function dealLog(d, from, to, status, note) {
  */
 const canViewAdmin = () => !!me() && ['Super Admin', 'Kepala Department', 'Koordinator'].includes(me().role);
 const canEditOptions = canViewAdmin;
-const canManageServices = (dept) => !!me() && (me().role === 'Super Admin' || (isLead(me()) && dept === me().dept));
+// Layanan satu daftar untuk semua divisi; yang mengelola Super Admin dan Kepala Department (revisi klien 27 Nov 2026).
+const canManageServices = () => !!me() && ['Super Admin', 'Kepala Department'].includes(me().role);
 
 function audit(action, entity, detail) {
   const u = me();
